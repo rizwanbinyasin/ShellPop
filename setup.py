@@ -4,60 +4,70 @@ from subprocess import Popen, PIPE
 import os
 
 def applyChanges():
-    proc = Popen("source ~/.bashrc", stdout=PIPE, stderr=PIPE, shell=True)
-    _, _ = proc.communicate()
+    # Running "source ~/.bashrc" in a subprocess does NOTHING to the current shell.
+    # But to keep original behavior, we leave it.
+    proc = Popen("bash -c 'source ~/.bashrc'", stdout=PIPE, stderr=PIPE, shell=True)
+    proc.communicate()
     return None
 
+
 def activateTabComplete():
-    proc = Popen("activate-global-python-argcomplete", stdout=PIPE, stderr=PIPE, shell=True)
-    _, _ = proc.communicate()
-    return True if proc.poll() is 0 else False
+    proc = Popen("activate-global-python-argcomplete",
+                 stdout=PIPE, stderr=PIPE, shell=True)
+    proc.communicate()
+    return proc.poll() == 0  # FIXED: "is 0" → "== 0"
+
 
 def autoComplete():
     """
     Get the content required to register Shellpop into tab auto-completion
     @zc00l
     """
-    proc = Popen("register-python-argcomplete shellpop", stdout=PIPE, stderr=PIPE, shell=True)
+    proc = Popen("register-python-argcomplete shellpop",
+                 stdout=PIPE, stderr=PIPE, shell=True)
     stdout, _ = proc.communicate()
-    return stdout
+
+    # stdout is bytes in Python 3 → decode to string
+    return stdout.decode("utf-8")
+
 
 class CustomInstall(install):
     def run(self):
-        install.run(self)
-        bashrc_file = os.environ["HOME"] + os.sep + ".bashrc"
+        super().run()
+
+        bashrc_file = os.path.join(os.environ["HOME"], ".bashrc")
+
         if not os.path.exists(bashrc_file):
             return None
+
         with open(bashrc_file, "r") as f:
             bashrc_content = f.read()
+
         if "shellpop" not in bashrc_content:
             print("Registering shellpop in .bashrc for auto-completion ...")
-            activateTabComplete() # this will enable auto-complete feature.
 
-            # This will write the configuration needed in .bashrc file
+            activateTabComplete()
+
+            # Append auto-complete script to .bashrc
             with open(bashrc_file, "a") as f:
-                f.write("\n{0}\n".format(autoComplete()))
+                f.write("\n{}\n".format(autoComplete()))
+
             print("Auto-completion has been installed.")
             applyChanges()
 
-setup(name='shellpop',
-      version='0.3.5',
-      description='Bind and Reverse shell code generator to aid Penetration Tester in their work.',
-      url='https://github.com/0x00-0x00/ShellPop.git',
-      author='zc00l, lowfuel, touhidshaikh',
-      author_email='andre.marques@fatec.sp.gov.br',
-      license='MIT',
-      packages=['shellpop'],
-      package_dir={"shellpop": "src"},
-      package_data={
-          "shellpop": ["src/*"],
-      },
 
-        # No data files yet.
-      #data_files=[
-      #    ('shellpop', ['src/agent_list.json']),
-      #],
-
-      scripts=["bin/shellpop"],
-      zip_safe=False,
-      cmdclass={'install':CustomInstall})
+setup(
+    name='shellpop',
+    version='0.3.6',
+    description='Bind and Reverse shell code generator to aid Penetration Tester in their work. Originally dev by authors (zc00l, lowfuel, touhidshaikh) in python2; forked and updated by rizwanbinyasin in python3',
+    url='https://github.com/rizwanbinyasin/ShellPop.git',
+    author='rizwanbinyasin',
+    author_email='rizwanbinyasin@gmail.com',
+    license='MIT',
+    packages=['shellpop'],
+    package_dir={"shellpop": "src"},
+    package_data={"shellpop": ["src/*"]},
+    scripts=["bin/shellpop"],
+    zip_safe=False,
+    cmdclass={'install': CustomInstall}
+)

@@ -8,9 +8,7 @@ to help you during penetration tests.
 Don't waste more time with .txt files storing your Reverse shells!
 -----
 ## Installation
-Python 2.7 is required. 
-
-3.0+ version will not work.
+Python 3 is required. 
 
 **Required Dependencies Install**
 ```bash

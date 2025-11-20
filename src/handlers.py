@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 # Full stager remake. Now I am going to lead a major change in this functionality.
 # I am going to lendo multi/handler module of Metasploit Framework to do this job.
 # This is going to be done mostly because of meterpreter upgrade possibility.
@@ -14,6 +14,7 @@ import string
 import random
 from os import path, system
 
+
 class PTY:
     def __init__(self, slave=0, pid=os.getpid()):
         # apparently python GC's modules before class instances so, here
@@ -21,7 +22,7 @@ class PTY:
         self.termios, self.fcntl = termios, fcntl
 
         # open our controlling PTY
-        self.pty  = open(os.readlink("/proc/%d/fd/%d" % (pid, slave)), "rb+")
+        self.pty = open(os.readlink("/proc/%d/fd/%d" % (pid, slave)), "rb+")
 
         # store our old termios settings so we can restore after
         # we are finished
@@ -98,18 +99,18 @@ class TCP_PTY_Handler(object):
                     n += 1
                     sleep(5)
 
-
         # create our PTY
         pty = PTY()
 
         # input buffers for the fd's
-        buffers = [ [ sock, [] ], [ pty, [] ] ]
+        buffers = [[sock, []], [pty, []]]
+
         def buffer_index(fd):
             for index, buffer in enumerate(buffers):
                 if buffer[0] == fd:
                     return index
 
-        readable_fds = [ sock, pty ]
+        readable_fds = [sock, pty]
 
         data = " "
         # keep going until something deds
@@ -157,7 +158,7 @@ def random_file(n=10):
     """
     file_name = str()
     while len(file_name) < n:
-        chosen = list(string.letters)[random.randint(1, len(string.letters))-1]
+        chosen = string.ascii_letters[random.randint(1, len(string.ascii_letters)) - 1]
         file_name += chosen
     return "/tmp/" + file_name + ".rc"
 
@@ -227,7 +228,7 @@ class Generic(MetaHandler):
         if path.exists(self.file_name):
             print(error("File already exists! Aborting :("))
             return None
-        with open(self.file_name, "wb") as f:
+        with open(self.file_name, "w") as f:  # <-- CHANGED from "wb" to "w"
             f.write(self.generate_rc_content(meterpreter=meterpreter))
 
         # Execute our .rc file to open metasploit handler.
@@ -251,13 +252,17 @@ def get_shell_name(shell_obj):
             return "cmd"
 
 
-def reverse_tcp_handler((args, shell)):
+# --- FIXED: Removed tuple parameter unpacking ---
+
+def reverse_tcp_handler(args_shell):
+    args, shell = args_shell
     shell_name = get_shell_name(shell)
     handler = Generic((args.host, args.port), shell_name, is_bind=False)
     handler.generate_and_execute()
 
 
-def bind_tcp_handler((args, shell)):
+def bind_tcp_handler(args_shell):
+    args, shell = args_shell
     shell_name = get_shell_name(shell)
     handler = Generic((args.host, args.port), shell_name, is_bind=True)
     handler.generate_and_execute()
@@ -265,11 +270,13 @@ def bind_tcp_handler((args, shell)):
 
 # I am keeping these handlers because of @Lowfuel
 
-def bind_tcp_pty_handler((args, shell)):
+def bind_tcp_pty_handler(args_shell):
+    args, shell = args_shell
     handler = TCP_PTY_Handler((args.host, args.port), bind=False)
     handler.handle()
 
 
-def reverse_tcp_pty_handler((args, shell)):
+def reverse_tcp_pty_handler(args_shell):
+    args, shell = args_shell
     handler = TCP_PTY_Handler((args.host, args.port), bind=True)
     handler.handle()

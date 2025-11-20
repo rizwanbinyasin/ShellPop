@@ -1,10 +1,9 @@
 from shellpop import *
-from encoders import powershell_base64, xor, to_unicode, to_urlencode
-from classes import base64_wrapper, xor_wrapper
-from SimpleHTTPServer import SimpleHTTPRequestHandler
-from SocketServer import TCPServer
+from .encoders import powershell_base64, xor, to_unicode, to_urlencode
+from .classes import base64_wrapper, xor_wrapper
+from http.server import SimpleHTTPRequestHandler
+from socketserver import TCPServer
 from socket import *
-
 
 class HTTPServer(object):
     def __init__(self, port):
@@ -182,7 +181,7 @@ def choose_stager(stagers):
     for stager in stagers:
         print("\033[093m%d\033[0m. ".ljust(3) % stager[0] + "%s" % stager[1].name)
         i += 1
-    n = int(raw_input(info("Stager number: ")), 10) # decimal
+    n = int(input(info("Stager number: ")), 10) # decimal
     if n > len(stagers) or n < 1:
         print(error("You cant choose a stager option number higher than the maximum amount of available stagers. Setting it to 1."))
         n = 1

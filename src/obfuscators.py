@@ -3,6 +3,12 @@ import random
 import re
 import string
 
+
+def py2_oct(n):
+    """Return octal string in Python 2 style: '012' instead of '0o12'"""
+    return '0' + oct(n)[2:]
+
+
 def randomize_vars(code, smallVars, lang=""):
     """
     Parses 'code' as a string, and replaces all arbitrary
@@ -14,29 +20,29 @@ def randomize_vars(code, smallVars, lang=""):
     """
     randGen = random.SystemRandom()
 
-    nums = re.findall("NUM\d", code)
-    vars = re.findall("VAR\d+", code)
+    nums = re.findall(r"NUM\d", code)
+    vars = re.findall(r"VAR\d+", code)
 
     if smallVars:
         maxNum = 999
     else:
         maxNum = 9999999
 
+    # Replace NUM placeholders with unique random numbers
     randNums = []
     for num in nums:
-        randNum = randGen.randint(1, maxNum)
+        randNum = randGen.randint(0, maxNum)
         while randNum in randNums:
-            randNum = gen_random_num(1, maxNum)
-        
-        code = code.replace(num, str(randGen.randint(0, maxNum)))
+            randNum = randGen.randint(0, maxNum)
+        code = code.replace(num, str(randNum))
         randNums.append(randNum)
 
+    # Replace VAR placeholders with unique random variable names
     randVars = []
     for var in vars:
         randVar = gen_random_var(smallVars, lang)
         while randVar in randVars:
             randVar = gen_random_var(smallVars, lang)
-        
         code = code.replace(var, randVar)
         randVars.append(randVar)
 
@@ -56,16 +62,16 @@ def gen_random_var(smallVars, lang):
     else:
         minVarLen = 6
         maxVarLen = 15
-    
+
     randVarLen = randGen.randint(minVarLen, maxVarLen)
-    randomVar = "".join(randGen.choice(string.ascii_letters) for x in range(randVarLen))
+    randomVar = "".join(randGen.choice(string.ascii_letters) for _ in range(randVarLen))
 
     # Ruby requires that variables start with a lowercase letter
     if lang == "ruby":
-        randomVar =  randomVar[0].lower() + randomVar[1:]
+        randomVar = randomVar[0].lower() + randomVar[1:]
 
     return randomVar
-    
+
 
 def ipfuscate(ip, smallIP):
     """
@@ -80,17 +86,16 @@ def ipfuscate(ip, smallIP):
 
     if not smallIP:
         ip = random_base_ip_gen(parts, smallIP)
-        
     else:
-        type = randGen.randint(0, 3)
+        type_choice = randGen.randint(0, 3)
         decimal = int(parts[0]) * 16777216 + int(parts[1]) * 65536 + int(parts[2]) * 256 + int(parts[3])
 
-        if type == 0:
+        if type_choice == 0:
             ip = decimal
-        elif type == 1:
+        elif type_choice == 1:
             ip = hex(decimal)
-        elif type == 2:
-            ip = oct(decimal)
+        elif type_choice == 2:
+            ip = py2_oct(decimal)
         else:
             ip = random_base_ip_gen(parts, smallIP)
 
@@ -109,40 +114,34 @@ def random_base_ip_gen(parts, smallIP):
     octParts = []
 
     for i in parts:
-		hexParts.append(hex(int(i)))
-		octParts.append(oct(int(i)))
+        hexParts.append(hex(int(i)))
+        octParts.append(py2_oct(int(i)))
 
-    randBaseIP = ""
-    baseChoices = []
-    ip_obfuscated = False
-    while not ip_obfuscated:
-        for i in range(0,4):
+    while True:
+        randBaseIP = ""
+        baseChoices = []
+        for i in range(4):
             val = randGen.randint(0, 2)
             baseChoices.append(val)
             if val == 0:
-                # dec
                 randBaseIP += parts[i] + '.'
             elif val == 1:
-                # hex
                 if not smallIP:
-                    randBaseIP += hexParts[i].replace('0x', '0x' + '0' * (ord(os.urandom(1)) % 31)) + '.'
+                    pad = '0' * (ord(os.urandom(1)) % 31)
+                    hex_part = hexParts[i].replace('0x', '0x' + pad)
+                    randBaseIP += hex_part + '.'
                 else:
                     randBaseIP += hexParts[i] + '.'
-            else:
-                # oct
+            else:  # octal
                 if not smallIP:
-                    randBaseIP += '0' * (ord(os.urandom(1)) % 31) + octParts[i] + '.'
+                    pad = '0' * (ord(os.urandom(1)) % 31)
+                    randBaseIP += pad + octParts[i] + '.'
                 else:
                     randBaseIP += octParts[i] + '.'
 
-        # Check to make sure all four parts of IP aren't decimal... in which case nothing would have changed
-        if sum(baseChoices) > 4:
-            ip_obfuscated = True
-        else:
-            randBaseIP = ""
-            del baseChoices[:]
-
-    return randBaseIP[:-1]
+        # Ensure at least one part is non-decimal
+        if any(choice != 0 for choice in baseChoices):
+            return randBaseIP[:-1]  # remove trailing '.'
 
 
 def obfuscate_port(port, smallExpr, lang):
@@ -163,38 +162,24 @@ def obfuscate_port(port, smallExpr, lang):
         for piece in baseExprPieces:
             expr, pieces = gen_simple_expr(piece, smallExpr)
             subExprs.append(expr % (pieces[0], pieces[1], pieces[2]))
-
         portExpr = exprStr % (subExprs[0], subExprs[1], subExprs[2])
-        
-    # Randomly replace '+' with '--'. Same thing, more confusing
-    match = re.search("\+\d+", portExpr)
-    beginingExprLen = 0
-    while match is not None:   
-        match = list(match.span())
-        match[0] += beginingExprLen
-        match[1] += beginingExprLen
-        choice = randGen.randint(0, 1)
 
-        if choice:
-            portExpr = portExpr[:match[0]] + "-(-" + portExpr[match[0] + 1:match[1]] + ")" + portExpr[match[1]:]
+    # Randomly replace '+N' with '-(-N)'
+    match = re.search(r"\+\d+", portExpr)
+    while match:
+        start, end = match.span()
+        if randGen.randint(0, 1):
+            portExpr = portExpr[:start] + "-(-" + portExpr[start+1:end] + ")" + portExpr[end:]
+        match = re.search(r"\+\d+", portExpr[end:])
 
-        beginingExprLen = len(portExpr[:match[1]])
-        match = re.search("\+\d+", portExpr[match[1]:])
-    
-    # Properly separate any double '-' signs. Some langs complain
-    match = re.search("--\d+", portExpr)
-    beginingExprLen = 0
-    while match is not None:   
-        match = list(match.span())
-        match[0] += beginingExprLen
-        match[1] += beginingExprLen
+    # Fix '--N' → '-(N)'
+    match = re.search(r"--\d+", portExpr)
+    while match:
+        start, end = match.span()
+        portExpr = portExpr[:start] + "-(" + portExpr[start+1:end] + ")" + portExpr[end:]
+        match = re.search(r"--\d+", portExpr[end:])
 
-        portExpr = portExpr[:match[0]] + "-(" + portExpr[match[0] + 1:match[1]] + ")" + portExpr[match[1]:]
-
-        beginingExprLen = len(portExpr[:match[1]])
-        match = re.search("--\d+", portExpr[match[1]:])
-    
-    # Bash requires mathematical expressions to be in $((expr)) syntax
+    # Bash requires $((...))
     if lang == "bash":
         portExpr = "$((" + portExpr + "))"
 
@@ -211,7 +196,7 @@ def gen_simple_expr(n, smallExpr):
     """
     randGen = random.SystemRandom()
 
-    if type(n) == str:
+    if isinstance(n, str):
         n = int(eval(n))
 
     if n == 0:
@@ -222,60 +207,49 @@ def gen_simple_expr(n, smallExpr):
         N = n
 
     choice = randGen.randint(0, 2)
-    left = 0
-    if choice == 0:
+    if choice == 0:  # addition
         if N < 0:
             left = randGen.randint(N * 2, -N + 1)
             right = randGen.randint(N - 1, -N * 2)
         else:
             left = randGen.randint(-N * 2, N - 1)
             right = randGen.randint(-N + 1, N * 2)
+        total = left + right
+        offset = n - total if total < n else total - n
+        expr = "((%s+%s)+%s)" if total < n else "(-(-(%s+%s)+%s))"
 
-        if left + right < n:
-            offset = n - (left + right)
-            expr = "((%s+%s)+%s)"
-        else:
-            offset = (left + right) - n
-            expr = "(-(-(%s+%s)+%s))"
-    elif choice == 1:
+    elif choice == 1:  # subtraction
         if N < 0:
             left = randGen.randint(N - 1, -N * 2)
             right = randGen.randint(N * 2, N - 1)
         else:
             left = randGen.randint(-N + 1, N * 2)
             right = randGen.randint(-N * 2, N + 1)
+        total = left - right
+        offset = n - total if total < n else total - n
+        expr = "((%s-%s)+%s)" if total < n else "(-(-(%s-%s)+%s))"
 
-        if left - right < n:
-            offset = n - (left - right)
-            expr = "((%s-%s)+%s)"
-        else:
-            offset = (left - right) - n
-            expr = "(-(-(%s-%s)+%s))"
-    elif choice == 2:
+    else:  # multiplication
         if N < 0:
             left = randGen.randint(int(N / 2), -int(N / 2) - 2)
             right = randGen.randint(int(N / 3), -int(N / 3))
         else:
             left = randGen.randint(-int(n / 2), int(n / 2) + 2)
             right = randGen.randint(-int(n / 3), int(n / 3))
+        total = left * right
+        offset = n - total if total < n else total - n
+        expr = "((%s*%s)+%s)" if total < n else "(-(-(%s*%s)+%s))"
 
-        if left * right < n:
-            offset = n - (left * right)
-            expr = "((%s*%s)+%s)"
-        else:
-            offset = (left * right) - n
-            expr = "(-(-(%s*%s)+%s))"
-
-    # Replace all zeros with an expression. Zeros make arithemetic easy
+    # Recursively obfuscate zero terms if not in small mode
     if not smallExpr:
         if left == 0:
             zeroExpr, terms = gen_simple_expr(0, smallExpr)
-            left = zeroExpr % (terms[0], terms[1], terms[2])
+            left = zeroExpr % terms
         if right == 0:
             zeroExpr, terms = gen_simple_expr(0, smallExpr)
-            right = zeroExpr % (terms[0], terms[1], terms[2])
+            right = zeroExpr % terms
         if offset == 0:
             zeroExpr, terms = gen_simple_expr(0, smallExpr)
-            offset = zeroExpr % (terms[0], terms[1], terms[2])
+            offset = zeroExpr % terms
 
     return (expr, (left, right, offset))

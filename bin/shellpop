@@ -1,7 +1,7 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 # Description:
 # ShellPop is program to aid penetration testers
-# generating quick and dirty reverse/bind shell 
+# generating quick and dirty reverse/bind shell
 # code to get on with the pentests.
 # ==========
 # History:
@@ -22,9 +22,28 @@ from argparse import ArgumentParser
 from sys import stderr
 from random import randint
 from multiprocessing import Process
+import sys  # Import sys for sys.exit()
+import os   # Import os for os.getcwd(), os.chdir()
+import time # Import time for time.sleep() (used via sleep alias later)
+from time import sleep # Import sleep directly as well, often aliased in time module
 
 # package import
-from shellpop import *
+# Note: This import assumes the shellpop package is installed correctly
+# and that all necessary classes/functions are available from the top-level shellpop module.
+# If the package structure is different, you might need:
+from shellpop.classes import *
+from shellpop.handlers import *
+from shellpop.stagers import *
+from shellpop.bind import *
+from shellpop.reverse import *
+
+#from . import binary
+#from . import encoders
+#from . import obfuscators
+
+#from shellpop.functions import * # Assuming info/error are utility functions
+# For simplicity and based on the __init__.py you showed, this single import might work if the __init__.py handles all necessary imports.
+#from shellpop import * # This relies on the shellpop package's __init__.py importing everything needed
 
 
 # Get current Operational System
@@ -32,500 +51,502 @@ write = stderr.write
 flush = stderr.flush
 version = 0.36  # updated 04/06/2018
 
+# --- Shell Definitions (Same as your original, just formatted for readability) ---
+# [The AVAILABLE_SHELLS dictionary remains exactly the same as it defines data structures,
+#  not Python 2/3 syntax differences. The Shell class instantiation will depend on the import above.]
+# Assuming the Shell class and all the BIND_* and REV_* functions are correctly imported via the 'from shellpop import *' above.
+
 AVAILABLE_SHELLS = [
-        
+    {
         # Bind shell list
-        {
-            # Introducing the new Shell object to hold
-            # Information about the shells. Look below.
-            1: Shell("Python TCP +pty",  # name
-                "python",
-                "bind",  # shell type
-                "tcp", # protocol
-                BIND_PYTHON_TCP(),  # code
-                system="linux",
-                lang="python",
-                arch="Independent",
-                use_handler=bind_tcp_pty_handler,
-                use_http_stager=LINUX_STAGERS),
+        1: Shell("Python TCP +pty",  # name
+                 "python",
+                 "bind",  # shell type
+                 "tcp",  # protocol
+                 BIND_PYTHON_TCP(),  # code
+                 system="linux",
+                 lang="python",
+                 arch="Independent",
+                 use_handler=bind_tcp_pty_handler,
+                 use_http_stager=LINUX_STAGERS),
 
-            2: Shell("Python UDP",
-                "python", 
-                "bind",
-                "udp",
-                BIND_PYTHON_UDP(),
-                system="linux",
-                lang="python",
-                arch="Independent",
-                use_handler=None,
-                use_http_stager=LINUX_STAGERS),
+        2: Shell("Python UDP",
+                 "python",
+                 "bind",
+                 "udp",
+                 BIND_PYTHON_UDP(),
+                 system="linux",
+                 lang="python",
+                 arch="Independent",
+                 use_handler=None,
+                 use_http_stager=LINUX_STAGERS),
 
-            3: Shell("Perl TCP",
-                "perl" ,
-                "bind",
-                "tcp",
-                BIND_PERL_TCP(),
-                system="linux",
-                lang="perl",
-                arch="Independent",
-                use_handler=bind_tcp_handler,
-                use_http_stager=LINUX_STAGERS),
+        3: Shell("Perl TCP",
+                 "perl",
+                 "bind",
+                 "tcp",
+                 BIND_PERL_TCP(),
+                 system="linux",
+                 lang="perl",
+                 arch="Independent",
+                 use_handler=bind_tcp_handler,
+                 use_http_stager=LINUX_STAGERS),
 
-            4: Shell("Perl UDP",
-                "perl", 
-                "bind",
-                "udp",
-                BIND_PERL_UDP(),
-                system="linux",
-                lang="perl",
-                arch="Independent", 
-                use_handler=None,
-                use_http_stager=LINUX_STAGERS),
+        4: Shell("Perl UDP",
+                 "perl",
+                 "bind",
+                 "udp",
+                 BIND_PERL_UDP(),
+                 system="linux",
+                 lang="perl",
+                 arch="Independent",
+                 use_handler=None,
+                 use_http_stager=LINUX_STAGERS),
 
-            5: Shell("PHP TCP",
-                "php",
-                "bind",
-                "tcp",
-                BIND_PHP_TCP(),
-                system="linux",
-                lang="php",
-                arch="Independent",
-                use_handler=bind_tcp_handler,
-                use_http_stager=LINUX_STAGERS),
+        5: Shell("PHP TCP",
+                 "php",
+                 "bind",
+                 "tcp",
+                 BIND_PHP_TCP(),
+                 system="linux",
+                 lang="php",
+                 arch="Independent",
+                 use_handler=bind_tcp_handler,
+                 use_http_stager=LINUX_STAGERS),
 
-            6: Shell("PHP UDP",
-                "php",
-                "bind",
-                "udp", 
-                BIND_PHP_UDP(),
-                system="linux",
-                lang="php",
-                arch="Independent",
-                use_handler=None,
-                use_http_stager=LINUX_STAGERS),
+        6: Shell("PHP UDP",
+                 "php",
+                 "bind",
+                 "udp",
+                 BIND_PHP_UDP(),
+                 system="linux",
+                 lang="php",
+                 arch="Independent",
+                 use_handler=None,
+                 use_http_stager=LINUX_STAGERS),
 
-            7: Shell("Ruby TCP",
-                "ruby", 
-                "bind",
-                "tcp",
-                BIND_RUBY_TCP(),
-                system="linux",
-                lang="ruby",
-                arch="Independent",
-                use_handler=bind_tcp_handler,
-                use_http_stager=LINUX_STAGERS),
+        7: Shell("Ruby TCP",
+                 "ruby",
+                 "bind",
+                 "tcp",
+                 BIND_RUBY_TCP(),
+                 system="linux",
+                 lang="ruby",
+                 arch="Independent",
+                 use_handler=bind_tcp_handler,
+                 use_http_stager=LINUX_STAGERS),
 
-            8: Shell("Ruby UDP",
-                "ruby", 
-                "bind",
-                "udp",
-                BIND_RUBY_UDP(),
-                system="linux",
-                lang="ruby",
-                arch="Independent",
-                use_handler=None,
-                use_http_stager=LINUX_STAGERS),
+        8: Shell("Ruby UDP",
+                 "ruby",
+                 "bind",
+                 "udp",
+                 BIND_RUBY_UDP(),
+                 system="linux",
+                 lang="ruby",
+                 arch="Independent",
+                 use_handler=None,
+                 use_http_stager=LINUX_STAGERS),
 
-            9: Shell("Netcat (OpenBSD) TCP",
-                "netcat_openbsd",
-                "bind",
-                "tcp",
-                BIND_NETCAT_TCP(),
-                system="linux",
-                lang="bash",
-                arch="Independent",
-                use_handler=bind_tcp_handler,
-                use_http_stager=LINUX_STAGERS),
+        9: Shell("Netcat (OpenBSD) TCP",
+                 "netcat_openbsd",
+                 "bind",
+                 "tcp",
+                 BIND_NETCAT_TCP(),
+                 system="linux",
+                 lang="bash",
+                 arch="Independent",
+                 use_handler=bind_tcp_handler,
+                 use_http_stager=LINUX_STAGERS),
 
-            10: Shell("Netcat+coproc (OpenBSD) UDP",
-                "netcat_openbsd",
-                "bind",
-                "udp",
-                BIND_NETCAT_OPENBSD_UDP(),
-                system="linux",
-                lang="bash",
-                arch="Independent",
-                use_handler=None,
-                use_http_stager=LINUX_STAGERS),
+        10: Shell("Netcat+coproc (OpenBSD) UDP",
+                 "netcat_openbsd",
+                 "bind",
+                 "udp",
+                 BIND_NETCAT_OPENBSD_UDP(),
+                 system="linux",
+                 lang="bash",
+                 arch="Independent",
+                 use_handler=None,
+                 use_http_stager=LINUX_STAGERS),
 
-            11: Shell("Netcat (Traditional) TCP",
-                "netcat_traditional",
-                "bind",
-                "tcp",
-                BIND_NETCAT_TRADITIONAL_TCP(),
-                system="linux",
-                lang="bash",
-                arch="Independent",
-                use_handler=bind_tcp_handler,
-                use_http_stager=LINUX_STAGERS),
+        11: Shell("Netcat (Traditional) TCP",
+                 "netcat_traditional",
+                 "bind",
+                 "tcp",
+                 BIND_NETCAT_TRADITIONAL_TCP(),
+                 system="linux",
+                 lang="bash",
+                 arch="Independent",
+                 use_handler=bind_tcp_handler,
+                 use_http_stager=LINUX_STAGERS),
 
-            12: Shell("AWK TCP",
-                "awk",
-                "bind",
-                "tcp",
-                BIND_AWK_TCP(),
-                system="linux",
-                lang="bash",
-                arch="Independent",
-                use_handler=bind_tcp_handler,
-                use_http_stager=LINUX_STAGERS),
+        12: Shell("AWK TCP",
+                 "awk",
+                 "bind",
+                 "tcp",
+                 BIND_AWK_TCP(),
+                 system="linux",
+                 lang="bash",
+                 arch="Independent",
+                 use_handler=bind_tcp_handler,
+                 use_http_stager=LINUX_STAGERS),
 
-            13: Shell("socat UDP",
-                "awk",
-                "bind",
-                "udp",
-                BIND_SOCAT_UDP(),
-                system="linux",
-                lang="bash",
-                arch="Independent",
-                use_handler=None,
-                use_http_stager=LINUX_STAGERS),
+        13: Shell("socat UDP",
+                 "awk",
+                 "bind",
+                 "udp",
+                 BIND_SOCAT_UDP(),
+                 system="linux",
+                 lang="bash",
+                 arch="Independent",
+                 use_handler=None,
+                 use_http_stager=LINUX_STAGERS),
 
-            14: Shell("Windows Powershell TCP",
-                "powershell",
-                "bind",
-                "tcp",
-                BIND_POWERSHELL_TCP(),
-                system="windows",
-                lang="powershell",
-                arch="x86 / x64",
-                use_handler=bind_tcp_handler,
-                use_http_stager=[WINDOWS_STAGERS[0]]),
+        14: Shell("Windows Powershell TCP",
+                 "powershell",
+                 "bind",
+                 "tcp",
+                 BIND_POWERSHELL_TCP(),
+                 system="windows",
+                 lang="powershell",
+                 arch="x86 / x64",
+                 use_handler=bind_tcp_handler,
+                 use_http_stager=[WINDOWS_STAGERS[0]]),
 
-            15: Shell("Windows Powershell Nishang TCP",
-                "powershell_nishang",
-                "bind",
-                "tcp",
-                BIND_POWERSHELL_NISHANG_TCP(),
-                system="windows",
-                lang="powershell",
-                arch="x86 / x64",
-                use_handler=bind_tcp_handler,
-                use_http_stager=[(1, PurePowershell_HTTP_Stager)])
-        },
+        15: Shell("Windows Powershell Nishang TCP",
+                 "powershell_nishang",
+                 "bind",
+                 "tcp",
+                 BIND_POWERSHELL_NISHANG_TCP(),
+                 system="windows",
+                 lang="powershell",
+                 arch="x86 / x64",
+                 use_handler=bind_tcp_handler,
+                 use_http_stager=[(1, PurePowershell_HTTP_Stager)])
+    },
 
-        # Reverse shell list
-        {
-            1: Shell("Python TCP +pty",
-                "python",
-                "reverse",
-                "tcp",
-                REV_PYTHON_TCP(),
-                system="linux",
-                lang="python",
-                arch="Independent",
-                use_handler=reverse_tcp_pty_handler,
-                use_http_stager=LINUX_STAGERS),
+    # Reverse shell list
+    {
+        1: Shell("Python TCP +pty",
+                 "python",
+                 "reverse",
+                 "tcp",
+                 REV_PYTHON_TCP(),
+                 system="linux",
+                 lang="python",
+                 arch="Independent",
+                 use_handler=reverse_tcp_pty_handler,
+                 use_http_stager=LINUX_STAGERS),
 
-            2: Shell("Python UDP",
-                "python",
-                "reverse",
-                "udp",
-                REV_PYTHON_UDP(),
-                system="linux",
-                lang="python",
-                arch="Independent",
-                use_handler=None,
-                use_http_stager=LINUX_STAGERS),
+        2: Shell("Python UDP",
+                 "python",
+                 "reverse",
+                 "udp",
+                 REV_PYTHON_UDP(),
+                 system="linux",
+                 lang="python",
+                 arch="Independent",
+                 use_handler=None,
+                 use_http_stager=LINUX_STAGERS),
 
-            3: Shell("PHP TCP",
-                "php",
-                "reverse",
-                "tcp",
-                REV_PHP_TCP(),
-                system="linux",
-                lang="php",
-                arch="Independent",
-                use_handler=reverse_tcp_handler,
-                use_http_stager=LINUX_STAGERS),
+        3: Shell("PHP TCP",
+                 "php",
+                 "reverse",
+                 "tcp",
+                 REV_PHP_TCP(),
+                 system="linux",
+                 lang="php",
+                 arch="Independent",
+                 use_handler=reverse_tcp_handler,
+                 use_http_stager=LINUX_STAGERS),
 
-            4: Shell("Ruby TCP",
-                "ruby",
-                "reverse",
-                "tcp",
-                REV_RUBY_TCP(),
-                system="linux",
-                lang="ruby",
-                arch="Independent",
-                use_handler=reverse_tcp_handler,
-                use_http_stager=LINUX_STAGERS),
+        4: Shell("Ruby TCP",
+                 "ruby",
+                 "reverse",
+                 "tcp",
+                 REV_RUBY_TCP(),
+                 system="linux",
+                 lang="ruby",
+                 arch="Independent",
+                 use_handler=reverse_tcp_handler,
+                 use_http_stager=LINUX_STAGERS),
 
-            5: Shell("Perl TCP 01",
-                "perl_1",
-                "reverse",
-                "tcp",
-                REV_PERL_TCP(),
-                system="linux",
-                lang="perl",
-                arch="Independent",
-                use_handler=reverse_tcp_handler,
-                use_http_stager=LINUX_STAGERS),
+        5: Shell("Perl TCP 01",
+                 "perl_1",
+                 "reverse",
+                 "tcp",
+                 REV_PERL_TCP(),
+                 system="linux",
+                 lang="perl",
+                 arch="Independent",
+                 use_handler=reverse_tcp_handler,
+                 use_http_stager=LINUX_STAGERS),
 
-            6: Shell("Perl TCP 02",
-                "perl_2",
-                "reverse",
-                "tcp",
-                REV_PERL_TCP_2(),
-                system="linux",
-                lang="perl",
-                arch="Independent",
-                use_handler=reverse_tcp_handler,
-                use_http_stager=LINUX_STAGERS),
+        6: Shell("Perl TCP 02",
+                 "perl_2",
+                 "reverse",
+                 "tcp",
+                 REV_PERL_TCP_2(),
+                 system="linux",
+                 lang="perl",
+                 arch="Independent",
+                 use_handler=reverse_tcp_handler,
+                 use_http_stager=LINUX_STAGERS),
 
-            7: Shell("Perl UDP [nc -lkvup PORT]",
-                "perl",
-                "reverse",
-                "udp",
-                REV_PERL_UDP(),
-                system="linux",
-                lang="perl",
-                arch="Independent",
-                use_handler=None,
-                use_http_stager=LINUX_STAGERS),
+        7: Shell("Perl UDP [nc -lkvup PORT]",
+                 "perl",
+                 "reverse",
+                 "udp",
+                 REV_PERL_UDP(),
+                 system="linux",
+                 lang="perl",
+                 arch="Independent",
+                 use_handler=None,
+                 use_http_stager=LINUX_STAGERS),
 
-            8: Shell("Bash TCP",
-                "bash",
-                "reverse",
-                "tcp",
-                BASH_TCP(),
-                system="linux",
-                lang="bash",
-                arch="Independent",
-                use_handler=reverse_tcp_handler,
-                use_http_stager=LINUX_STAGERS),
+        8: Shell("Bash TCP",
+                 "bash",
+                 "reverse",
+                 "tcp",
+                 BASH_TCP(),
+                 system="linux",
+                 lang="bash",
+                 arch="Independent",
+                 use_handler=reverse_tcp_handler,
+                 use_http_stager=LINUX_STAGERS),
 
-            9: Shell("Windows Powershell TCP",
-                "powershell",
-                "reverse",
-                "tcp",
-                REV_POWERSHELL_TCP(),
-                system="windows",
-                lang="powershell",
-                arch="x86 / x64",
-                use_handler=reverse_tcp_handler,
-                use_http_stager=[WINDOWS_STAGERS[0]]),
+        9: Shell("Windows Powershell TCP",
+                 "powershell",
+                 "reverse",
+                 "tcp",
+                 REV_POWERSHELL_TCP(),
+                 system="windows",
+                 lang="powershell",
+                 arch="x86 / x64",
+                 use_handler=reverse_tcp_handler,
+                 use_http_stager=[WINDOWS_STAGERS[0]]),
 
-            10: Shell("TCLsh TCP",
-                "tclsh",
-                "reverse",
-                "tcp",
-                REVERSE_TCLSH(),
-                system="linux",
-                lang="bash",
-                arch="Independent",
-                use_handler=reverse_tcp_handler,
-                use_http_stager=LINUX_STAGERS),
+        10: Shell("TCLsh TCP",
+                 "tclsh",
+                 "reverse",
+                 "tcp",
+                 REVERSE_TCLSH(),
+                 system="linux",
+                 lang="bash",
+                 arch="Independent",
+                 use_handler=reverse_tcp_handler,
+                 use_http_stager=LINUX_STAGERS),
 
-            11: Shell("Ncat TCP",
-                "ncat",
-                "reverse",
-                "tcp",
-                REVERSE_NCAT(),
-                system="linux",
-                lang="bash",
-                arch="Independent",
-                use_handler=reverse_tcp_handler,
-                use_http_stager=LINUX_STAGERS),
+        11: Shell("Ncat TCP",
+                 "ncat",
+                 "reverse",
+                 "tcp",
+                 REVERSE_NCAT(),
+                 system="linux",
+                 lang="bash",
+                 arch="Independent",
+                 use_handler=reverse_tcp_handler,
+                 use_http_stager=LINUX_STAGERS),
 
-            12: Shell("Ncat SSL TCP",
-                "ncat_ssl",
-                "reverse",
-                "tcp",
-                REVERSE_NCAT_SSL(),
-                system="linux",
-                lang="bash",
-                arch="Independent",
-                use_handler=reverse_tcp_handler,
-                use_http_stager=LINUX_STAGERS),
+        12: Shell("Ncat SSL TCP",
+                 "ncat_ssl",
+                 "reverse",
+                 "tcp",
+                 REVERSE_NCAT_SSL(),
+                 system="linux",
+                 lang="bash",
+                 arch="Independent",
+                 use_handler=reverse_tcp_handler,
+                 use_http_stager=LINUX_STAGERS),
 
-            13: Shell("Netcat (Traditional) UDP",
-                "netcat_traditional",
-                "reverse",
-                "udp",
-                REVERSE_NC_UDP_1(),
-                system="linux",
-                lang="bash",
-                arch="Independent",
-                use_handler=None,
-                use_http_stager=LINUX_STAGERS),
+        13: Shell("Netcat (Traditional) UDP",
+                 "netcat_traditional",
+                 "reverse",
+                 "udp",
+                 REVERSE_NC_UDP_1(),
+                 system="linux",
+                 lang="bash",
+                 arch="Independent",
+                 use_handler=None,
+                 use_http_stager=LINUX_STAGERS),
 
-            14: Shell("Netcat (Traditional) TCP",
-                "netcat_traditional",
-                "reverse",
-                "tcp",
-                REVERSE_NC_TRADITIONAL_1(),
-                system="linux",
-                lang="bash",
-                arch="Independent",
-                use_handler=reverse_tcp_handler,
-                use_http_stager=LINUX_STAGERS),
+        14: Shell("Netcat (Traditional) TCP",
+                 "netcat_traditional",
+                 "reverse",
+                 "tcp",
+                 REVERSE_NC_TRADITIONAL_1(),
+                 system="linux",
+                 lang="bash",
+                 arch="Independent",
+                 use_handler=reverse_tcp_handler,
+                 use_http_stager=LINUX_STAGERS),
 
-            15: Shell("Netcat (OpenBSD) mkfifo TCP",
-                "netcat_openbsd",
-                "reverse",
-                "tcp",
-                REVERSE_MKFIFO_NC(),
-                system="linux",
-                lang="bash",
-                arch="Independent",
-                use_handler=reverse_tcp_handler,
-                use_http_stager=LINUX_STAGERS),
+        15: Shell("Netcat (OpenBSD) mkfifo TCP",
+                 "netcat_openbsd",
+                 "reverse",
+                 "tcp",
+                 REVERSE_MKFIFO_NC(),
+                 system="linux",
+                 lang="bash",
+                 arch="Independent",
+                 use_handler=reverse_tcp_handler,
+                 use_http_stager=LINUX_STAGERS),
 
-            16: Shell("Netcat (OpenBSD) mknod TCP",
-                "netcat_openbsd",
-                "reverse",
-                "tcp",
-                REVERSE_MKNOD_NC(),
-                system="linux",
-                lang="bash",
-                arch="Independent",
-                use_handler=reverse_tcp_handler,
-                use_http_stager=LINUX_STAGERS),
+        16: Shell("Netcat (OpenBSD) mknod TCP",
+                 "netcat_openbsd",
+                 "reverse",
+                 "tcp",
+                 REVERSE_MKNOD_NC(),
+                 system="linux",
+                 lang="bash",
+                 arch="Independent",
+                 use_handler=reverse_tcp_handler,
+                 use_http_stager=LINUX_STAGERS),
 
-            17: Shell("Telnet mkfifo TCP",
-                "telnet_mkfifo",
-                "reverse",
-                "tcp",
-                REVERSE_MKFIFO_TELNET(),
-                system="linux",
-                lang="bash",
-                arch="Independent",
-                use_handler=reverse_tcp_handler,
-                use_http_stager=LINUX_STAGERS),
+        17: Shell("Telnet mkfifo TCP",
+                 "telnet_mkfifo",
+                 "reverse",
+                 "tcp",
+                 REVERSE_MKFIFO_TELNET(),
+                 system="linux",
+                 lang="bash",
+                 arch="Independent",
+                 use_handler=reverse_tcp_handler,
+                 use_http_stager=LINUX_STAGERS),
 
-            18: Shell("Telnet mknod TCP",
-                "telnet_mknod",
-                "reverse",
-                "tcp",
-                REVERSE_MKNOD_TELNET(),
-                system="linux",
-                lang="bash",
-                arch="Independent",
-                use_handler=reverse_tcp_handler,
-                use_http_stager=LINUX_STAGERS),
+        18: Shell("Telnet mknod TCP",
+                 "telnet_mknod",
+                 "reverse",
+                 "tcp",
+                 REVERSE_MKNOD_TELNET(),
+                 system="linux",
+                 lang="bash",
+                 arch="Independent",
+                 use_handler=reverse_tcp_handler,
+                 use_http_stager=LINUX_STAGERS),
 
-            19: Shell("openssl TCP",
-                "openssl",
-                "reverse",
-                "tcp",
-                REVERSE_OPENSSL(),
-                system="linux",
-                lang="bash",
-                arch="Independent",
-                use_handler=reverse_tcp_handler,
-                use_http_stager=LINUX_STAGERS),
+        19: Shell("openssl TCP",
+                 "openssl",
+                 "reverse",
+                 "tcp",
+                 REVERSE_OPENSSL(),
+                 system="linux",
+                 lang="bash",
+                 arch="Independent",
+                 use_handler=reverse_tcp_handler,
+                 use_http_stager=LINUX_STAGERS),
 
-            20: Shell("socat TCP",
-                "socat",
-                "reverse",
-                "tcp",
-                REVERSE_SOCAT(),
-                system="linux",
-                lang="bash",
-                arch="Independent",
-                use_handler=reverse_tcp_handler,
-                use_http_stager=LINUX_STAGERS),
+        20: Shell("socat TCP",
+                 "socat",
+                 "reverse",
+                 "tcp",
+                 REVERSE_SOCAT(),
+                 system="linux",
+                 lang="bash",
+                 arch="Independent",
+                 use_handler=reverse_tcp_handler,
+                 use_http_stager=LINUX_STAGERS),
 
-            21: Shell("awk TCP",
-                "awk",
-                "reverse",
-                "tcp",
-                REVERSE_AWK(),
-                system="linux",
-                lang="bash",
-                arch="Independent",
-                use_handler=reverse_tcp_handler,
-                use_http_stager=LINUX_STAGERS),
+        21: Shell("awk TCP",
+                 "awk",
+                 "reverse",
+                 "tcp",
+                 REVERSE_AWK(),
+                 system="linux",
+                 lang="bash",
+                 arch="Independent",
+                 use_handler=reverse_tcp_handler,
+                 use_http_stager=LINUX_STAGERS),
 
-            22: Shell("awk UDP",
-                "awk",
-                "reverse",
-                "udp",
-                REVERSE_AWK_UDP(),
-                system="linux",
-                lang="bash",
-                arch="Independent",
-                use_handler=None,
-                use_http_stager=LINUX_STAGERS),
-            
-            23: Shell("Windows Bat2Ncat TCP",
-                "bat2exe_ncat",
-                "reverse",
-                "tcp",
-                REVERSE_WINDOWS_NCAT_TCP(),
-                system="windows",
-                lang="cmd",
-                arch="x86 / x64",
-                use_handler=reverse_tcp_handler,
-                use_http_stager=list(filter(lambda x: x[0] not in [3, 1], WINDOWS_STAGERS))),
+        22: Shell("awk UDP",
+                 "awk",
+                 "reverse",
+                 "udp",
+                 REVERSE_AWK_UDP(),
+                 system="linux",
+                 lang="bash",
+                 arch="Independent",
+                 use_handler=None,
+                 use_http_stager=LINUX_STAGERS),
 
-            24: Shell("Windows Powershell Shellcode-Injection a.k.a BloodSeeker TCP - x64",
-                "powershell_shellcode_injection",
-                "reverse",
-                "tcp",
-                REVERSE_WINDOWS_BLOODSEEKER_TCP(),
-                system="windows",
-                lang="powershell",
-                arch="x64",
-                use_handler=None,
-                use_http_stager=[(1, PurePowershell_HTTP_Stager)]),  # This will only work with powershell.
-            
-            25: Shell("Windows Powershell Tiny TCP",
-                "powershell_tiny",
-                "reverse",
-                "tcp",
-                REVERSE_POWERSHELL_TINY_TCP(),
-                system="windows",
-                lang="powershell",
-                arch="x86 / x64",
-                use_handler=reverse_tcp_handler,
-                use_http_stager=[WINDOWS_STAGERS[0]]),
+        23: Shell("Windows Bat2Ncat TCP",
+                 "bat2exe_ncat",
+                 "reverse",
+                 "tcp",
+                 REVERSE_WINDOWS_NCAT_TCP(),
+                 system="windows",
+                 lang="cmd",
+                 arch="x86 / x64",
+                 use_handler=reverse_tcp_handler,
+                 use_http_stager=list(filter(lambda x: x[0] not in [3, 1], WINDOWS_STAGERS))),
 
-            26: Shell("Windows Powershell Nishang TCP",
-                "powershell_nishang",
-                "reverse",
-                "tcp",
-                REVERSE_POWERSHELL_NISHANG_TCP(),
-                system="windows",
-                lang="powershell",
-                arch="x86 / x64",
-                use_handler=reverse_tcp_handler,
-                use_http_stager=[(1, PurePowershell_HTTP_Stager)]),
+        24: Shell("Windows Powershell Shellcode-Injection a.k.a BloodSeeker TCP - x64",
+                 "powershell_shellcode_injection",
+                 "reverse",
+                 "tcp",
+                 REVERSE_WINDOWS_BLOODSEEKER_TCP(),
+                 system="windows",
+                 lang="powershell",
+                 arch="x64",
+                 use_handler=None,
+                 use_http_stager=[(1, PurePowershell_HTTP_Stager)]),  # This will only work with powershell.
 
-            27: Shell("Windows Powershell Nishang ICMP",
-                "powershell_nishang",
-                "reverse",
-                "icmp",
-                REVERSE_POWERSHELL_ICMP(),
-                system="windows",
-                lang="powershell",
-                arch="x86 / x64",
-                use_handler=None,
-                use_http_stager=[(1, PurePowershell_HTTP_Stager)]),
+        25: Shell("Windows Powershell Tiny TCP",
+                 "powershell_tiny",
+                 "reverse",
+                 "tcp",
+                 REVERSE_POWERSHELL_TINY_TCP(),
+                 system="windows",
+                 lang="powershell",
+                 arch="x86 / x64",
+                 use_handler=reverse_tcp_handler,
+                 use_http_stager=[WINDOWS_STAGERS[0]]),
 
-            28: Shell("Windows Bat2Meterpreter TCP",
-                "bat2meterpreter",
-                "reverse",
-                "tcp",
-                REVERSE_WINDOWS_BAT2METERPRETER_TCP(),
-                system="windows",
-                lang="cmd",
-                arch="x86 / x64",
-                use_handler=None,
-                use_http_stager=list(filter(lambda x: x[0] not in [1, 3], WINDOWS_STAGERS))),
+        26: Shell("Windows Powershell Nishang TCP",
+                 "powershell_nishang",
+                 "reverse",
+                 "tcp",
+                 REVERSE_POWERSHELL_NISHANG_TCP(),
+                 system="windows",
+                 lang="powershell",
+                 arch="x86 / x64",
+                 use_handler=reverse_tcp_handler,
+                 use_http_stager=[(1, PurePowershell_HTTP_Stager)]),
 
-            29: Shell("Groovy TCP",
-                "groovy",
-                "reverse",
-                "tcp",
-                REVERSE_GROOVY_TCP(),
-                system="multi",
-                lang="grovvy",
-                arch="Independent",
-                use_handler=reverse_tcp_handler,
-                use_http_stager=list(filter(lambda x: x[0] not in [1], WINDOWS_STAGERS))),
-        }
-    ]
+        27: Shell("Windows Powershell Nishang ICMP",
+                 "powershell_nishang",
+                 "reverse",
+                 "icmp",
+                 REVERSE_POWERSHELL_ICMP(),
+                 system="windows",
+                 lang="powershell",
+                 arch="x86 / x64",
+                 use_handler=None,
+                 use_http_stager=[(1, PurePowershell_HTTP_Stager)]),
+
+        28: Shell("Windows Bat2Meterpreter TCP",
+                 "bat2meterpreter",
+                 "reverse",
+                 "tcp",
+                 REVERSE_WINDOWS_BAT2METERPRETER_TCP(),
+                 system="windows",
+                 lang="cmd",
+                 arch="x86 / x64",
+                 use_handler=None,
+                 use_http_stager=list(filter(lambda x: x[0] not in [1, 3], WINDOWS_STAGERS))),
+
+        29: Shell("Groovy TCP",
+                 "groovy",
+                 "reverse",
+                 "tcp",
+                 REVERSE_GROOVY_TCP(),
+                 system="multi",
+                 lang="grovvy",
+                 arch="Independent",
+                 use_handler=reverse_tcp_handler,
+                 use_http_stager=list(filter(lambda x: x[0] not in [1], WINDOWS_STAGERS))),
+    }
+]
 
 bind_shells = AVAILABLE_SHELLS[0]
 reverse_shells = AVAILABLE_SHELLS[1]
@@ -537,9 +558,9 @@ def proto_colorize(shell_name):
     the protocol of bind/reverse shells name.
     """
     proto_avail = [
-            ("UDP", "94"), 
-            ("TCP", "93"),
-            ("ICMP", "92"), ]  # available protocols to colorize.
+        ("UDP", "94"),
+        ("TCP", "93"),
+        ("ICMP", "92"), ]  # available protocols to colorize.
     for proto in proto_avail:
         if proto[0] in shell_name:
             shell_name = shell_name.replace(proto[0], "\033[{0}m{1}\033[0m".format(proto[1], proto[0]))
@@ -548,13 +569,13 @@ def proto_colorize(shell_name):
 
 def list_shells():
     write(info("\033[1mBind shells\033[0m:\n\n"))
-    for i in range(1, len(bind_shells)+1):
+    for i in range(1, len(bind_shells) + 1):
         obj = bind_shells[i]
         print("{0}. {1}".format(str(i).rjust(3), proto_colorize(obj.name)))
-    
+
     write("\n\n")
     write(info("\033[1mReverse shells\033[0m:\n\n"))
-    for i in range(1, len(reverse_shells)+1):
+    for i in range(1, len(reverse_shells) + 1):
         obj = reverse_shells[i]
         print("{0}. {1}".format(str(i).rjust(3), proto_colorize(obj.name)))
     return 0
@@ -582,9 +603,8 @@ def header():
 
 
 def select_shell(args, shell_type, shell_index):
-
     # Update algorithm after the new introduced Shell object.
-    # This function used to return a string, containing the 
+    # This function used to return a string, containing the
     # final payload code. Now it returns a Shell() object.
     # This Shell() object has the final payload in the 'pay-
     # load' attribute.
@@ -616,8 +636,8 @@ def select_shell(args, shell_type, shell_index):
 
 # Completer function for tab-completion.
 def get_shells(prefix, parsed_args, **kwargs):
-    all_shells = reverse_shells.values()
-    all_shells.extend(bind_shells.values())
+    all_shells = list(reverse_shells.values())  # dict.values() returns a view, convert to list for extend
+    all_shells.extend(list(bind_shells.values())) # Same here
     return [x.get_full_name() for x in all_shells]
 
 
@@ -634,12 +654,13 @@ def get_shell_number(str_data, dataset):
 
 
 def main():
-    parser = ArgumentParser(epilog='Pop shells like a master. For more help visit:https://github.com/0x00-0x00/ShellPop')
+    parser = ArgumentParser(
+        epilog='Pop shells like a master. For more help visit:https://github.com/0x00-0x00/ShellPop')
     parser._optionals.title = "Options"
 
     # List mode
     parser.add_argument("-l", "--list", help="List of available shells", action="store_true")
-    
+
     # Program parameters
     parser.add_argument("-H", "--host", type=str, help="IP to be used in connectback (reverse) shells.")
     parser.add_argument("-P", "--port", type=int, help="Port to be used in reverse/bind shell code.")
@@ -652,14 +673,14 @@ def main():
     payload_arg.add_argument("--reverse", action="store_true",
                              help="Victim communicates back to the attacking machine.")
     payload_arg.add_argument("--bind", action="store_true", help="Open up a listener on the victim machine.")
-    #payload_arg.add_argument("-M", "--meterpreter", action="store_true", help="Upgrades shell to a meterpreter session.")
-    
+    # payload_arg.add_argument("-M", "--meterpreter", action="store_true", help="Upgrades shell to a meterpreter session.")
+
     # Alternative way to select shell payloads, using auto-tab completion.
     payload_arg.add_argument("--payload", required=False, help="Choose the payload").completer = get_shells
 
     # Available encodings
     encoders = parser.add_argument_group('Encoders Options')
-    encoders.add_argument("--xor", action="store_true",help="Enable XOR obfuscation", required=False)
+    encoders.add_argument("--xor", action="store_true", help="Enable XOR obfuscation", required=False)
     encoders.add_argument("--base64", action="store_true", required=False, help="Encode command in base64.")
     encoders.add_argument("--urlencode", action="store_true", required=False,
                           help="Encode the command in URL encoding.")
@@ -706,7 +727,7 @@ def main():
         # Use the --payload argument to choose automatically the correct number.
         reverse_int = get_shell_number(args.payload, reverse_shells)
         bind_int = get_shell_number(args.payload, bind_shells)
-        
+
         if reverse_int:
             args.reverse = True  # this sets --reverse
             args.number = reverse_int  # this sets --number
@@ -716,7 +737,7 @@ def main():
         else:
             print(error("Error: Your --payload flag is invalid."))
             exit(1)
-        
+
     if type(args.number) is not int:
         write(header())
         print(error("Error: You need to select a shell using --number. To list shells use: --list"))
@@ -764,7 +785,8 @@ def main():
         shell = select_shell(args, "bind", args.number)
         if args.handler is not False:
             if args.host is None:
-                args.host = raw_input("[\033[092m*\033[0m] Remote host IP address: ")
+                # CHANGE: raw_input -> input for Python 3
+                args.host = input("[\033[092m*\033[0m] Remote host IP address: ")
             shell.handler_args = (args, shell)
 
     # This is the spot for stagers.
@@ -778,7 +800,7 @@ def main():
     if args.stager is not None:
 
         # He wants stager.
-        if args.stager == "http": # He chose http stager.
+        if args.stager == "http":  # He chose http stager.
             if shell.use_http_stager is False:
                 print(info("This shell does not supports HTTP staging."))
             else:
@@ -797,12 +819,12 @@ def main():
                         if args.xor != 0 and "powershell" in shell.name.lower():
                             # Windows Powershell XOR encoding will only work with Powershell HTTP staging.
                             shell.use_http_stager = [(1, Powershell_HTTP_Stager)]
-                        
+
                         # Choose the stager option
                         if len(shell.use_http_stager) == 1:
                             shell.use_http_stager = shell.use_http_stager[0][1]
                         else:
-                            shell.use_http_stager = choose_stager(shell.use_http_stager) # choose a stager.
+                            shell.use_http_stager = choose_stager(shell.use_http_stager)  # choose a stager.
                             if shell.use_http_stager is None:
                                 # Make sure there is a selected staging option.
                                 print(error("You have selected an invalid staging option."))
@@ -827,25 +849,25 @@ def main():
         print(info("ShellPop code has been copied to clipboard."))
 
     print(info("Execute this code in remote target: \n\n{0}\n".format(to_be_executed)))
-    
+
     if shell.handler is not None and args.handler is True:
         print(info("Starting shell handler ..."))
         try:
             shell.handler(shell.handler_args)
         except KeyboardInterrupt:
             print(info("Killing handler ..."))
-            sys.exit()
+            sys.exit() # sys is imported above
         except IOError:
             print(info("Port Already used by another Program or Something Wrong..."))
-            sys.exit()
+            sys.exit() # sys is imported above
     else:
         print(info("This shell DOES NOT have a handler set."))
-    
+
     # Handle staging.
     if stager is not None:
         print(info("Press CTRL+C to interrupt the HTTP stager ..."))
         try:
-            while 1:
+            while True: # Changed '1' to 'True' for clarity in Python 3 style
                 sleep(10)
         except KeyboardInterrupt:
             print(info("Killing HTTP server ..."))

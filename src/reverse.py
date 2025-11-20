@@ -1,6 +1,6 @@
 #!/usr/bin/env python
-from binary import WINDOWS_NCAT, WINDOWS_SHARPCODE, binary_to_bat, shellcode_to_ps1
-from classes import generate_file_name
+from .binary import WINDOWS_NCAT, WINDOWS_SHARPCODE, binary_to_bat, shellcode_to_ps1
+from .classes import generate_file_name
 
 
 def REV_PYTHON_TCP():
