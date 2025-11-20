@@ -596,7 +596,7 @@ def check_shell_number(number, reverse=True):
 
 
 def header():
-    contributors = ["@zc00l", "@touhidshaikh", "@lowfuel"]
+    contributors = ["@zc00l", "@touhidshaikh", "@lowfuel", "@rizwanbinyasin"]
     return "\033[093mshellpop\033[0m v{0}\n\033[93mContributors\033[0m: {1}\n\n".format(version,
                                                                                         ','.join([x for x in
                                                                                                   contributors]))
